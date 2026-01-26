@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, io::Read};
 
 use anyhow::Result;
 use ndarray::{Array1, Array2};
@@ -6,9 +6,9 @@ use ndarray::{Array1, Array2};
 pub fn decode_images() -> Result<Array2<u8>> {
     let bytes = fs::read("./data/minst/train-images.idx3-ubyte")?;
 
-    //println!("{:?}", header);
+    let mut header = &bytes[0..16];
 
-    //for byte in bytes.iter() {
+    //for byte in &bytes {
     //    println!("{}", byte);
     //}
 

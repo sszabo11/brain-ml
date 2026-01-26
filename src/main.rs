@@ -1,32 +1,87 @@
+use anyhow::Result;
+mod blur;
+mod eye;
+mod plot;
 use ndarray::{Array1, Array2};
+mod data;
+mod encoder;
 mod htm;
+mod image;
+mod sp;
 use ndarray_rand::RandomExt;
 use rand::{Rng, distr::Uniform};
 
-use crate::htm::HTM;
+use crate::{
+    blur::process_image, encoder::encode, eye::Eye, htm::HTM, image::decode_image, plot::plot,
+    sp::SpatialPooler,
+};
 
-//use crate::data::decode_images;
+fn main() -> Result<()> {
+    //let sdr = SDR::new(50, 0.02);
 
-fn main() {
-    let sdr = SDR::new(64, 0.02);
+    //let mut rng = rand::rng();
+    //let input: Array1<(u8, u8, u8)> = (0..len)
+    //    .map(|i| {
+    //        let r: u8 = rng.random_range(0..=255);
+    //        let g: u8 = rng.random_range(0..=255);
+    //        let b: u8 = rng.random_range(0..=255);
+    //        (r, g, b)
+    //    })
+    //    .collect();
 
-    let input = sdr.values;
+    //let input: Array2<(u8, u8, u8)> = input.to_shape((100, 100)).unwrap().to_owned();
 
-    let mut htm = HTM::new(4096, 32, 0.2, 0.5, 0.03);
+    //assert!(input.nrows() == 100);
+    //assert!(input.ncols() == 100);
 
-    let f = input[0].flatten().to_owned();
+    let input = process_image("./images/bird-small.jpg");
+    let cols = input.ncols();
+    let rows = input.nrows();
+    //for i in 1..=100 {
 
-    assert!(f.len() == 4096);
+    let mut eye = Eye::new(cols, rows, 1);
 
-    htm.compute_overlap(&f);
+    let start = std::time::Instant::now();
+    let data = eye.process(&input);
 
-    let mut winners = htm.compute_winner();
+    let path = format!("./output/heatmap-bss.png");
+    println!(
+        "elapsed: {} | pxs: {}",
+        start.elapsed().as_millis(),
+        input.len()
+    );
+    plot(&data, &path).unwrap();
+    //}
 
-    htm.update(&f, &mut winners);
+    return Ok(());
+    let images = decode_image().unwrap();
 
-    //let images = decode_images().unwrap();
-    //println!("{}", images);
-    //sdr.draw();
+    let image_sdrs: Vec<Array1<usize>> = images
+        .into_iter()
+        .map(|i| encode(i, 2352).unwrap())
+        .collect();
+
+    //let input = sdr.values;
+
+    //let mut htm = HTM::new(2500, 32, 0.2, 0.5, 0.03);
+
+    let mut sp = SpatialPooler::new(2352, 32, 0.2, 0.5, 0.03);
+
+    for (i, image) in image_sdrs.iter().enumerate() {
+        if i.is_multiple_of(100) {
+            println!("Image: {}", i);
+        };
+
+        assert!(image.len() == 2352);
+
+        sp.compute_overlap(image);
+        sp.apply_boost();
+
+        let mut winners = sp.compute_winners();
+        sp.update(image, &mut winners);
+    }
+
+    Ok(())
 }
 
 struct SDR {
